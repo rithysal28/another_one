@@ -7,7 +7,7 @@ services:
       - "8092:8092"
     environment:
       - NODE_ENV=production
-      # Add any S3 or MinIO environment variables your server.js needs here
+      # - DATABASE_URL=postgresql://user:password@host:port/database
     depends_on:
       - minio-storage
 
