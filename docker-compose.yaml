@@ -1,44 +1,27 @@
 version: '3.8'
 
 services:
-  # 1. Your Node.js Application
   web:
-    image: node:20-alpine
-    working_dir: /app
-    volumes:
-      - .:/app
+    build: .
     ports:
       - "8092:8092"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - MINIO_ENDPOINT=http://minio-storage:9000
-      - MINIO_ACCESS_KEY=rithysal_access_key
-      - MINIO_SECRET_KEY=rithysal_secret_secure_key
-      - MINIO_BUCKET=project-media
-    command: sh -c "npm install && npm start"
-    restart: always
+      - NODE_ENV=production
+      # Add any S3 or MinIO environment variables your server.js needs here
     depends_on:
-      minio-storage:
-        condition: service_healthy
+      - minio-storage
 
-  # 2. The MinIO S3 Object Storage Service
   minio-storage:
-    image: minio/minio:latest # 👈 CHANGED THIS LINE to a universally resolved official tag
+    image: minio/minio
     ports:
-      - "9000:9000" # S3 API Data Transfer Port
-      - "9001:9001" # Web Admin Console UI Port
-    environment:
-      - MINIO_ROOT_USER=rithysal_access_key
-      - MINIO_ROOT_PASSWORD=rithysal_secret_secure_key
+      - "9000:9000"
+      - "9001:9001"
     volumes:
-      - minio_data:/data
+      - minio-data:/data
     command: server /data --console-address ":9001"
-    restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 3
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminpassword
 
 volumes:
-  minio_data:
+  minio-data:
