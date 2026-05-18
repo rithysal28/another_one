@@ -40,7 +40,7 @@ services:
             <div style=\"border:1px solid #333;padding:20px;border-radius:10px;background:#1a1a1a;max-width:500px;\">
               <h3>Database Integration Test:</h3>
               <ul>
-                <li>Target Database: <span style=\"color:white\">my-postgres-db</span></li>
+                <li>Target Database: <span style=\"color:white\">mnmnmnemnemnemnemen</span></li>
                 <li>Connection Result: <span style=\"color:\${dbColor};font-weight:bold;\">\${dbStatus}</span></li>
               </ul>
             </div>
