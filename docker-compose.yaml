@@ -1,53 +1,47 @@
+version: '3.8'
+
 services:
-  another-one:
+  # 1. Your Node.js Application
+  web:
     image: node:20-alpine
-    container_name: test-db-connection-server
-    restart: always
+    working_dir: /app
+    volumes:
+      - .:/app
     ports:
-      - "8092:80"
+      - "8092:8092"
     environment:
       - DATABASE_URL=${DATABASE_URL}
-    command: >
-      sh -c "
-      mkdir -p /app && cd /app &&
-      npm init -y &&
-      npm install pg &&
-      echo '
-      const http = require(\"http\");
-      const { Client } = require(\"pg\");
-      
-      const server = http.createServer(async (req, res) => {
-        let dbStatus = \"⚠️ Checking...\";
-        let dbColor = \"yellow\";
-        
-        const client = new Client({ connectionString: process.env.DATABASE_URL });
-        try {
-          await client.connect();
-          dbStatus = \"✅ Connected Successfully!\";
-          dbColor = \"#00ff00\";
-          await client.end();
-        } catch (err) {
-          dbStatus = \"❌ Connection Failed: \" + err.message;
-          dbColor = \"#ff3333\";
-        }
+      # Point to the internal container name "minio-storage" on port 9000
+      - MINIO_ENDPOINT=http://minio-storage:9000
+      - MINIO_ACCESS_KEY=rithysal_access_key
+      - MINIO_SECRET_KEY=rithysal_secret_secure_key
+      - MINIO_BUCKET=project-media
+    command: sh -c "npm install && npm start"
+    restart: always
+    depends_on:
+      minio-storage:
+        condition: service_healthy # Wait until MinIO is fully ready before starting the app
 
-        res.writeHead(200, { \"Content-Type\": \"text/html\" });
-        res.end(`
-          <html>
-          <body style=\"background:#111;color:#3399ff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;\">
-            <h1>Testing Application: another_one</h1>
-            <p>Status: <span style=\"color:white\">Online</span></p>
-            <div style=\"border:1px solid #333;padding:20px;border-radius:10px;background:#1a1a1a;max-width:500px;\">
-              <h3>Database Integration Test:</h3>
-              <ul>
-                <li>111 Target Database: <span style=\"color:white\">mnmnmnemne helloHELLO mnemnemen</span></li>
-                <li>222 Connection Result: <span style=\"color:\${dbColor};font-weight:bold;\">\${dbStatus}</span>yes or HELLO no maybe</li>
-              </ul>
-            </div>
-          </body>
-          </html>
-        `);
-      });
-      
-      server.listen(80);
-      ' > index.js && node index.js"
+  # 2. The MinIO S3 Object Storage Service
+  minio-storage:
+    image: minio/minio:RELEASE.2024-05-10T01-38-56Z
+    ports:
+      - "9000:9000" # S3 API Data Transfer Port
+      - "9001:9001" # Web Admin Console UI Port
+    environment:
+      - MINIO_ROOT_USER=rithysal_access_key
+      - MINIO_ROOT_PASSWORD=rithysal_secret_secure_key
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: always
+    # Keeps the container from rushing ahead until the server API is responsive
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+# Named volume ensures your uploaded files survive when containers restart or rebuild
+volumes:
+  minio_data:
