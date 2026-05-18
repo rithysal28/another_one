@@ -1,0 +1,53 @@
+services:
+  another-one:
+    image: node:20-alpine
+    container_name: test-db-connection-server
+    restart: always
+    ports:
+      - "8092:80"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    command: >
+      sh -c "
+      mkdir -p /app && cd /app &&
+      npm init -y &&
+      npm install pg &&
+      echo '
+      const http = require(\"http\");
+      const { Client } = require(\"pg\");
+      
+      const server = http.createServer(async (req, res) => {
+        let dbStatus = \"⚠️ Checking...\";
+        let dbColor = \"yellow\";
+        
+        const client = new Client({ connectionString: process.env.DATABASE_URL });
+        try {
+          await client.connect();
+          dbStatus = \"✅ Connected Successfully!\";
+          dbColor = \"#00ff00\";
+          await client.end();
+        } catch (err) {
+          dbStatus = \"❌ Connection Failed: \" + err.message;
+          dbColor = \"#ff3333\";
+        }
+
+        res.writeHead(200, { \"Content-Type\": \"text/html\" });
+        res.end(`
+          <html>
+          <body style=\"background:#111;color:#3399ff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;\">
+            <h1>Testing Application: another_one</h1>
+            <p>Status: <span style=\"color:white\">Online</span></p>
+            <div style=\"border:1px solid #333;padding:20px;border-radius:10px;background:#1a1a1a;max-width:500px;\">
+              <h3>Database Integration Test:</h3>
+              <ul>
+                <li>Target Database: <span style=\"color:white\">my-postgres-db</span></li>
+                <li>Connection Result: <span style=\"color:\${dbColor};font-weight:bold;\">\${dbStatus}</span></li>
+              </ul>
+            </div>
+          </body>
+          </html>
+        `);
+      });
+      
+      server.listen(80);
+      ' > index.js && node index.js"
