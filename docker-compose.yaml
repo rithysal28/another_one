@@ -7,10 +7,15 @@ services:
       - "8092:8092"
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres-db:5432/cafe_db
+      - MINIO_ENDPOINT=http://minio-storage:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadminpassword
     networks:
       - coolify
     depends_on:
       - minio-storage
+      - postgres-db
 
   minio-storage:
     image: minio/minio
@@ -26,8 +31,22 @@ services:
     networks:
       - coolify
 
+  postgres-db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cafe_db
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - coolify
+
 volumes:
   minio-data:
+  pg-data:
 
 networks:
   coolify:

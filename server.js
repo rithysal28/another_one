@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 8092;
 
 // 1. Postgres Setup
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres-db:5432/cafe_db',
   connectionTimeoutMillis: 5000, 
   idleTimeoutMillis: 30000
 });
@@ -17,8 +17,8 @@ const s3Client = new S3Client({
   endpoint: process.env.MINIO_ENDPOINT || 'http://minio-storage:9000',
   region: 'us-east-1',
   credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY || 'rithysal_access_key',
-    secretAccessKey: process.env.MINIO_SECRET_KEY || 'rithysal_secret_secure_key',
+    accessKeyId: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+    secretAccessKey: process.env.MINIO_SECRET_KEY || 'minioadminpassword',
   },
   forcePathStyle: true, // Required for local self-hosted S3/MinIO setups
 });
