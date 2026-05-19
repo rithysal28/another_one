@@ -6,19 +6,16 @@ const multer = require('multer');
 const app = express();
 const PORT = process.env.PORT || 8092;
 
-// Configure Multer to retain the uploaded file in memory buffer
 const upload = multer({ storage: multer.memoryStorage() });
 
-// 1. Postgres Setup
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres-db:5432/cafe_db',
   connectionTimeoutMillis: 5000, 
   idleTimeoutMillis: 30000
 });
 
-// 2. MinIO S3 Setup
 const s3Client = new S3Client({
-  endpoint: process.env.MINIO_ENDPOINT || 'http://minio-storage:9000',
+  endpoint: process.env.MINIO_ENDPOINT,
   region: 'us-east-1',
   credentials: {
     accessKeyId: process.env.MINIO_ACCESS_KEY || 'minioadmin',
@@ -29,7 +26,6 @@ const s3Client = new S3Client({
 
 const BUCKET_NAME = process.env.BUCKET_NAME || 'cafe-data';
 
-// GET Main Dashboard with Upload Interface
 app.get('/', async (req, res) => {
   let dbStatus = { success: false, message: 'Connecting...' };
   let storageStatus = { success: false, message: 'Connecting...' };
@@ -70,7 +66,6 @@ app.get('/', async (req, res) => {
         input[type="file"] { margin-bottom: 15px; display: block; width: 100%; color: #8d8d99; }
         button { background: #04d361; color: #fff; border: none; padding: 10px 20px; font-weight: bold; border-radius: 4px; cursor: pointer; width: 100%; font-size: 14px; }
         button:hover { background: #03b252; }
-        .result-box { margin-top: 15px; padding: 12px; border-radius: 4px; background: rgba(255,255,255,0.05); font-size: 13px; word-break: break-all; }
       </style>
     </head>
     <body>
@@ -98,7 +93,6 @@ app.get('/', async (req, res) => {
   res.send(html);
 });
 
-// POST Endpoint to execute file storage streaming test
 app.post('/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).send('No file uploaded.');
@@ -116,7 +110,6 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
     await s3Client.send(command);
 
-    // Provide a return output showing connection success details
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -132,7 +125,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       <body>
         <div class="card">
           <div class="success-text">File Stored Successfully! 🚀</div>
-          <p>Your file has been committed to the <strong>${BUCKET_NAME}</strong> bucket inside your MinIO container.</p>
+          <p>Your file has been committed down to your <strong>Local PC Hard Drive</strong> via the proxy tunnel.</p>
           <div style="background:#121214; padding:12px; border-radius:4px; word-break:break-all; font-size:13px; border:1px solid #323238;">
             <strong>Saved Object Key:</strong><br>${fileKey}
           </div>
