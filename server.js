@@ -5,14 +5,14 @@ const { S3Client, ListBucketsCommand } = require('@aws-sdk/client-s3');
 const app = express();
 const PORT = process.env.PORT || 8092;
 
-// 1. Postgres Setup
+// 1. Postgres Setup (For relational data like accounts, logs, text)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres-db:5432/cafe_db',
   connectionTimeoutMillis: 5000, 
   idleTimeoutMillis: 30000
 });
 
-// 2. MinIO S3 Setup
+// 2. MinIO S3 Setup (For binary asset storage like images, media)
 const s3Client = new S3Client({
   endpoint: process.env.MINIO_ENDPOINT || 'http://minio-storage:9000',
   region: 'us-east-1',
@@ -20,7 +20,7 @@ const s3Client = new S3Client({
     accessKeyId: process.env.MINIO_ACCESS_KEY || 'minioadmin',
     secretAccessKey: process.env.MINIO_SECRET_KEY || 'minioadminpassword',
   },
-  forcePathStyle: true, // Required for local self-hosted S3/MinIO setups
+  forcePathStyle: true, // Forces the SDK to look for buckets inside the host path
 });
 
 app.get('/', async (req, res) => {
@@ -38,7 +38,7 @@ app.get('/', async (req, res) => {
     dbStatus.message = `Failed: ${error.message} ❌`;
   }
 
-  // Run MinIO Test (Try to list your buckets)
+  // Run MinIO Test (Asks MinIO to check available storage spaces/buckets)
   try {
     await s3Client.send(new ListBucketsCommand({}));
     storageStatus.success = true;
