@@ -11,6 +11,7 @@ services:
       - MINIO_ENDPOINT=http://minio-storage:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadminpassword
+      - BUCKET_NAME=cafe-data
     networks:
       - coolify
     depends_on:

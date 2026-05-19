@@ -1,18 +1,22 @@
 const express = require('express');
 const { Pool } = require('pg');
-const { S3Client, ListBucketsCommand } = require('@aws-sdk/client-s3');
+const { S3Client, ListBucketsCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 8092;
 
-// 1. Postgres Setup (For relational data like accounts, logs, text)
+// Configure Multer to retain the uploaded file in memory buffer
+const upload = multer({ storage: multer.memoryStorage() });
+
+// 1. Postgres Setup
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres-db:5432/cafe_db',
   connectionTimeoutMillis: 5000, 
   idleTimeoutMillis: 30000
 });
 
-// 2. MinIO S3 Setup (For binary asset storage like images, media)
+// 2. MinIO S3 Setup
 const s3Client = new S3Client({
   endpoint: process.env.MINIO_ENDPOINT || 'http://minio-storage:9000',
   region: 'us-east-1',
@@ -20,14 +24,16 @@ const s3Client = new S3Client({
     accessKeyId: process.env.MINIO_ACCESS_KEY || 'minioadmin',
     secretAccessKey: process.env.MINIO_SECRET_KEY || 'minioadminpassword',
   },
-  forcePathStyle: true, // Forces the SDK to look for buckets inside the host path
+  forcePathStyle: true, 
 });
 
+const BUCKET_NAME = process.env.BUCKET_NAME || 'cafe-data';
+
+// GET Main Dashboard with Upload Interface
 app.get('/', async (req, res) => {
   let dbStatus = { success: false, message: 'Connecting...' };
   let storageStatus = { success: false, message: 'Connecting...' };
 
-  // Run Postgres Test
   try {
     const client = await pool.connect();
     await client.query('SELECT NOW();');
@@ -38,7 +44,6 @@ app.get('/', async (req, res) => {
     dbStatus.message = `Failed: ${error.message} ❌`;
   }
 
-  // Run MinIO Test (Asks MinIO to check available storage spaces/buckets)
   try {
     await s3Client.send(new ListBucketsCommand({}));
     storageStatus.success = true;
@@ -47,7 +52,6 @@ app.get('/', async (req, res) => {
     storageStatus.message = `Failed: ${error.message} ❌`;
   }
 
-  // Generate the clean UI
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -55,12 +59,18 @@ app.get('/', async (req, res) => {
       <meta charset="UTF-8">
       <title>System Integration Status</title>
       <style>
-        body { font-family: sans-serif; background: #121214; color: #e1e1e6; display: flex; justify-content: center; align-items: center; height: 100vh; margin:0; }
+        body { font-family: sans-serif; background: #121214; color: #e1e1e6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin:0; padding: 20px; box-sizing: border-box; }
         .card { background: #202024; border-radius: 8px; padding: 32px; width: 450px; border: 1px solid #323238; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         h2 { margin-top: 0; color: #fff; text-align: center; }
+        h3 { color: #fff; margin-top: 25px; font-size: 16px; }
         .status-item { padding: 16px; border-radius: 6px; margin: 15px 0; font-weight: bold; }
         .success { background: rgba(4, 211, 97, 0.1); color: #04d361; border: 1px solid #04d361; }
         .error { background: rgba(247, 81, 81, 0.1); color: #f75151; border: 1px solid #f75151; }
+        .upload-box { background: #121214; border: 1px dashed #323238; padding: 20px; border-radius: 6px; text-align: center; margin-top: 15px; }
+        input[type="file"] { margin-bottom: 15px; display: block; width: 100%; color: #8d8d99; }
+        button { background: #04d361; color: #fff; border: none; padding: 10px 20px; font-weight: bold; border-radius: 4px; cursor: pointer; width: 100%; font-size: 14px; }
+        button:hover { background: #03b252; }
+        .result-box { margin-top: 15px; padding: 12px; border-radius: 4px; background: rgba(255,255,255,0.05); font-size: 13px; word-break: break-all; }
       </style>
     </head>
     <body>
@@ -73,11 +83,67 @@ app.get('/', async (req, res) => {
         
         <div><strong>MinIO S3 Object Storage Connection:</strong></div>
         <div class="status-item ${storageStatus.success ? 'success' : 'error'}">${storageStatus.message}</div>
+
+        <h3>Interactive Storage Test</h3>
+        <div class="upload-box">
+          <form action="/upload" method="POST" enctype="multipart/form-data">
+            <input type="file" name="file" required />
+            <button type="submit">Upload File to MinIO</button>
+          </form>
+        </div>
       </div>
     </body>
     </html>
   `;
   res.send(html);
+});
+
+// POST Endpoint to execute file storage streaming test
+app.post('/upload', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).send('No file uploaded.');
+  }
+
+  const fileKey = `${Date.now()}-${req.file.originalname}`;
+
+  try {
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: fileKey,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+    });
+
+    await s3Client.send(command);
+
+    // Provide a return output showing connection success details
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: sans-serif; background: #121214; color: #e1e1e6; display: flex; justify-content: center; align-items: center; height: 100vh; margin:0; }
+          .card { background: #202024; border-radius: 8px; padding: 32px; width: 450px; border: 1px solid #323238; text-align: center; }
+          .success-text { color: #04d361; font-weight: bold; font-size: 18px; margin-bottom: 15px; }
+          a { color: #04d361; text-decoration: none; display: inline-block; margin-top: 15px; font-weight: bold; }
+          a:hover { text-decoration: underline; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="success-text">File Stored Successfully! 🚀</div>
+          <p>Your file has been committed to the <strong>${BUCKET_NAME}</strong> bucket inside your MinIO container.</p>
+          <div style="background:#121214; padding:12px; border-radius:4px; word-break:break-all; font-size:13px; border:1px solid #323238;">
+            <strong>Saved Object Key:</strong><br>${fileKey}
+          </div>
+          <a href="/">← Back to Dashboard</a>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    res.status(500).send(`Failed to store file in MinIO: ${error.message}`);
+  }
 });
 
 app.listen(PORT, () => console.log(`🚀 App listening on port ${PORT}`));
